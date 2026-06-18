@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Escadas Para o Amor</title>
+  <style>
+    /* Reset e estilo base */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a0e1e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', monospace;
+      touch-action: none;
+    }
+
+    /* Container responsivo - mantém proporção 9:16 */
+    #game-wrapper {
+      position: relative;
+      width: min(100%, calc(100vh * 0.5625));
+      height: min(100%, calc(100vw * 1.7778));
+      aspect-ratio: 9 / 16;
+      background: #2d1b33;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Fallback para navegadores que não suportam aspect-ratio */
+    @supports not (aspect-ratio: 9/16) {
+      #game-wrapper {
+        width: min(100%, calc(100vh * 0.5625));
+        height: min(100%, calc(100vw * 1.7778));
+      }
+    }
+
+    /* Container do canvas - mantém proporção interna */
+    #canvas-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #3b2342;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      touch-action: none;
+    }
+
+    /* Tela inicial (overlay) */
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(20, 8, 24, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #f7e3d4;
+      text-shadow: 2px 2px 0 #3d1f3a;
+      transition: opacity 0.8s ease;
+      pointer-events: auto;
+      padding: 20px;
+      text-align: center;
+      z-index: 20;
+    }
+    #start-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #start-screen h1 {
+      font-size: clamp(1.8rem, 8vw, 3.5rem);
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+      color: #ffd9b3;
+      text-shadow: 4px 4px 0 #5a2a4a;
+      font-weight: bold;
+      line-height: 1.2;
+    }
+    #start-screen .sub {
+      font-size: clamp(0.8rem, 2.5vw, 1.2rem);
+      background: rgba(255, 215, 200, 0.15);
+      padding: 10px 20px;
+      border-radius: 40px;
+      border: 1px solid #b3869a;
+      backdrop-filter: blur(2px);
+      margin: 12px 0 20px;
+    }
+    #start-screen .hint {
+      font-size: clamp(0.7rem, 2vw, 1rem);
+      opacity: 0.7;
+      margin-top: 20px;
+      border-top: 1px solid #b3869a40;
+      padding-top: 16px;
+    }
+
+    /* Controles touch (sobrepostos ao canvas) */
+    #touch-controls {
+      position: absolute;
+      bottom: clamp(10px, 4vh, 30px);
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 clamp(10px, 3vw, 30px);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #touch-controls .group {
+      display: flex;
+      gap: clamp(8px, 2vw, 20px);
+      pointer-events: auto;
+    }
+    .touch-btn {
+      width: clamp(42px, 10vw, 70px);
+      height: clamp(42px, 10vw, 70px);
+      border-radius: 50%;
+      background: rgba(255, 215, 200, 0.25);
+      backdrop-filter: blur(6px);
+      border: 2px solid #ffe2d0;
+      color: #ffefe6;
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 0 #4a2a3e;
+      transition: all 0.06s ease;
+      touch-action: none;
+      font-weight: bold;
+      text-shadow: 1px 2px 0 #2d1a28;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .touch-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #4a2a3e;
+    }
+    .touch-btn.interact {
+      width: clamp(50px, 12vw, 80px);
+      background: rgba(255, 180, 160, 0.35);
+      border-color: #ffb89a;
+    }
+
+    /* Modal de memória / puzzle */
+    #modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 4, 12, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 30;
+      padding: clamp(10px, 3vh, 30px);
+      pointer-events: auto;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    #modal-overlay.active {
+      opacity: 1;
+    }
+    #modal-box {
+      background: #261a2b;
+      border: 2px solid #b3869a;
+      border-radius: clamp(16px, 3vw, 28px);
+      max-width: 90vw;
+      max-height: 90vh;
+      width: 100%;
+      padding: clamp(16px, 3vw, 28px) clamp(12px, 2.5vw, 24px) clamp(14px, 2.5vw, 24px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      color: #f7e3d4;
+      text-align: center;
+      overflow-y: auto;
+    }
+    #modal-box h2 {
+      font-size: clamp(1.2rem, 3vw, 1.6rem);
+      color: #ffd9b3;
+      margin-bottom: 6px;
+    }
+    #modal-box .memory-image-container {
+      width: 100%;
+      background: #3f2a44;
+      border-radius: clamp(12px, 2vw, 16px);
+      margin: clamp(8px, 1.5vw, 14px) 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #b3869a;
+      overflow: hidden;
+      position: relative;
+      min-height: 80px;
+      transition: all 0.3s ease;
+    }
+    #modal-box .memory-image-container img {
+      width: 100%;
+      height: auto;
+      max-height: 40vh;
+      object-fit: contain;
+      display: block;
+    }
+    #modal-box .memory-image-container .placeholder-text,
+    #modal-box .memory-image-container .loading-text {
+      color: #b3869a;
+      font-size: clamp(0.8rem, 2vw, 1rem);
+      padding: 20px;
+      text-align: center;
+    }
+    #modal-box .memory-image-container .loading-text {
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    #modal-box .memory-text {
+      font-size: clamp(0.85rem, 2vw, 1.1rem);
+      line-height: 1.4;
+      margin: clamp(8px, 1.5vw, 12px) 0 clamp(12px, 2vw, 18px);
+      background: #2d1b33;
+      padding: clamp(8px, 1.5vw, 14px);
+      border-radius: clamp(12px, 2vw, 20px);
+      border: 1px solid #5a3a4a;
+    }
+    #modal-box .btn-primary {
+      background: #b3869a;
+      border: none;
+      color: #1a0e1e;
+      font-weight: bold;
+      padding: clamp(10px, 2vw, 16px) clamp(20px, 4vw, 36px);
+      border-radius: 40px;
+      font-size: clamp(0.85rem, 2vw, 1.1rem);
+      cursor: pointer;
+      box-shadow: 0 4px 0 #634a5a;
+      transition: 0.08s linear;
+      font-family: inherit;
+      letter-spacing: 1px;
+    }
+    #modal-box .btn-primary:active {
+      transform: translateY(4px);
+      box-shadow: 0 0px 0 #634a5a;
+    }
+    #modal-box .btn-primary:disabled {
+      opacity: 0.5;
+      transform: translateY(4px);
+      box-shadow: 0 0px 0 #634a5a;
+      cursor: not-allowed;
+    }
+
+    /* Mural final */
+    #final-mural {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #f7e3d4;
+      padding: clamp(16px, 4vw, 30px);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+    #final-mural.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #final-mural .mural-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(4px, 1vw, 10px);
+      max-width: min(240px, 60vw);
+      width: 100%;
+      margin: clamp(8px, 2vw, 16px) 0;
+    }
+    #final-mural .mural-item {
+      aspect-ratio: 1/1;
+      background: #4f3057;
+      border-radius: clamp(8px, 1.5vw, 12px);
+      border: 2px solid #b3869a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffd9b3;
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      overflow: hidden;
+    }
+    #final-mural .mural-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #final-mural .mural-item.filled {
+      background: #7a4d6b;
+      border-color: #ffd9b3;
+    }
+    #final-mural .love-msg {
+      font-size: clamp(0.85rem, 2.2vw, 1.2rem);
+      background: #1a0e1ecc;
+      padding: clamp(12px, 2vw, 20px);
+      border-radius: 40px;
+      border: 1px solid #b3869a;
+      max-width: min(340px, 80vw);
+      margin-top: clamp(6px, 1.5vw, 12px);
+      line-height: 1.5;
+    }
+    #final-mural .btn-restart {
+      margin-top: clamp(10px, 2vw, 18px);
+      background: #b3869a;
+      border: none;
+      padding: clamp(8px, 1.5vw, 14px) clamp(16px, 3vw, 28px);
+      border-radius: 40px;
+      font-weight: bold;
+      color: #1a0e1e;
+      font-size: clamp(0.8rem, 1.8vw, 1rem);
+      cursor: pointer;
+    }
+
+    /* Estilos para puzzles - responsivos */
+    .puzzle-option {
+      background: #3f2a44;
+      border: 2px solid #5a3a4a;
+      border-radius: clamp(8px, 1.5vw, 12px);
+      padding: clamp(6px, 1.2vw, 12px) clamp(10px, 2vw, 18px);
+      margin: 4px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #f7e3d4;
+      font-family: 'Courier New', monospace;
+      font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+      width: 100%;
+    }
+    .puzzle-option:hover {
+      background: #5a3a4a;
+      border-color: #b3869a;
+    }
+    .puzzle-option.selected {
+      background: #7a4d6b;
+      border-color: #ffd9b3;
+    }
+    .puzzle-option.correct {
+      background: #4a7a5a;
+      border-color: #8fbc8f;
+    }
+    .puzzle-option.wrong {
+      background: #7a4a4a;
+      border-color: #bc8f8f;
+    }
+    .puzzle-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(4px, 1vw, 8px);
+      margin: clamp(4px, 1vw, 10px) 0;
+    }
+    .puzzle-cell {
+      aspect-ratio: 1;
+      background: #3f2a44;
+      border: 2px solid #5a3a4a;
+      border-radius: clamp(6px, 1vw, 10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.2rem, 3vw, 1.8rem);
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: clamp(35px, 8vw, 55px);
+    }
+    .puzzle-cell:hover {
+      background: #5a3a4a;
+    }
+    .puzzle-cell.selected {
+      background: #7a4d6b;
+      border-color: #ffd9b3;
+    }
+    .puzzle-cell.found {
+      background: #4a7a5a;
+      border-color: #8fbc8f;
+    }
+    .sequence-display {
+      display: flex;
+      gap: clamp(4px, 1vw, 8px);
+      justify-content: center;
+      margin: clamp(4px, 1vw, 10px) 0;
+      font-size: clamp(1.2rem, 3vw, 1.8rem);
+      flex-wrap: wrap;
+    }
+    .sequence-display span {
+      background: #3f2a44;
+      padding: clamp(2px, 0.5vw, 6px) clamp(4px, 1vw, 10px);
+      border-radius: clamp(6px, 1vw, 10px);
+      border: 2px solid #5a3a4a;
+      min-width: clamp(25px, 6vw, 40px);
+      min-height: clamp(30px, 6vw, 45px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    .sequence-display span.active {
+      border-color: #ffd9b3;
+      background: #5a3a4a;
+      animation: pulse 0.5s ease-in-out;
+    }
+    .sequence-display span.done {
+      border-color: #8fbc8f;
+      background: #4a7a5a;
+    }
+    .sequence-display span.showing {
+      border-color: #ffd9b3;
+      background: #7a4d6b;
+      transform: scale(1.05);
+    }
+    .puzzle-feedback {
+      font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+      margin: clamp(4px, 1vw, 10px) 0;
+      padding: clamp(4px, 1vw, 10px);
+      border-radius: clamp(6px, 1vw, 10px);
+      min-height: 25px;
+    }
+    .puzzle-feedback.success {
+      color: #8fbc8f;
+    }
+    .puzzle-feedback.error {
+      color: #bc8f8f;
+    }
+    .color-btn {
+      width: clamp(35px, 8vw, 55px);
+      height: clamp(35px, 8vw, 55px);
+      border-radius: 50%;
+      border: 3px solid #5a3a4a;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: clamp(1rem, 2.5vw, 1.6rem);
+      background: #3f2a44;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .color-btn:hover {
+      transform: scale(1.05);
+      border-color: #b3869a;
+    }
+    .color-btn:active {
+      transform: scale(0.95);
+    }
+    .color-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-secondary {
+      background: #5a3a4a;
+      border: 2px solid #b3869a;
+      color: #f7e3d4;
+      padding: clamp(4px, 1vw, 10px) clamp(10px, 2vw, 18px);
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+      transition: all 0.2s;
+      margin: 2px;
+    }
+    .btn-secondary:hover {
+      background: #7a4d6b;
+    }
+    .btn-secondary:active {
+      transform: scale(0.95);
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    /* Ajustes para telas muito pequenas */
+    @media (max-width: 400px) {
+      .touch-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+      }
+      .touch-btn.interact {
+        width: 44px;
+        font-size: 0.9rem;
+      }
+      #touch-controls .group {
+        gap: 6px;
+      }
+    }
+
+    /* Ajustes para telas grandes (desktop) */
+    @media (min-width: 800px) {
+      #game-wrapper {
+        border-radius: 24px;
+      }
+      .touch-btn {
+        width: 64px;
+        height: 64px;
+        font-size: 1.8rem;
+      }
+      .touch-btn.interact {
+        width: 76px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="400" height="720"></canvas>
+
+  <!-- Tela inicial -->
+  <div id="start-screen">
+    <h1>🌸 Escadas<br>Para o Amor</h1>
+    <div class="sub">"Aperte qualquer tecla ou toque na tela"</div>
+    <div class="hint">♡ um jogo de memórias ♡</div>
+  </div>
+
+  <!-- Controles touch -->
+  <div id="touch-controls">
+    <div class="group">
+      <div class="touch-btn" id="btn-left">◀</div>
+      <div class="touch-btn" id="btn-right">▶</div>
+    </div>
+    <div class="group">
+      <div class="touch-btn" id="btn-jump">▲</div>
+      <div class="touch-btn interact" id="btn-interact">E</div>
+    </div>
+  </div>
+
+  <!-- Modal para memórias/puzzles -->
+  <div id="modal-overlay">
+    <div id="modal-box">
+      <h2 id="modal-title">✨ Memória</h2>
+      <div id="modal-puzzle-area" style="min-height: 60px;">
+        <!-- conteúdo dinâmico -->
+      </div>
+      <div class="memory-image-container" id="modal-image-container">
+        <span class="loading-text">⏳ Carregando imagem...</span>
+      </div>
+      <div class="memory-text" id="modal-text">Texto da memória</div>
+      <button class="btn-primary" id="modal-btn" disabled>Guardar memória</button>
+    </div>
+  </div>
+
+  <!-- Mural final -->
+  <div id="final-mural">
+    <h2 style="color:#ffd9b3; font-size: clamp(1.2rem, 3vw, 1.8rem);">🖼️ Nosso Mural</h2>
+    <div class="mural-grid" id="mural-grid"></div>
+    <div class="love-msg">"Ainda vamos preencher esse mural com mais memórias! <br>Te amo infinito e além, parabéns pelo nosso 0.3!!!"</div>
+    <button class="btn-restart" id="restart-btn">♡ recomeçar ♡</button>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ========== CONFIGURAÇÕES EDITÁVEIS ==========
+    const CONFIG = {
+      GAME_NAME: "Escadas Para o Amor",
+      BACKGROUND_MUSIC: "assets/music.mp3",
+      MEMORY_TEXTS: [
+        "Memória 1: Nossa primeira foto juntos. Naquele momento, eu senti que você seria mais que uma colega de turno",
+        "Memória 2: Uma das primeiras vezes que nós saímos, e eu tive certeza que faria de tudo para proteger esse sorriso.",
+        "Memória 3: Quando eu te vi nesse vestido eu sabia que teria que lutar pelo seu amor, e valeu a pena.",
+        "Memória 4: Primeiros dias nossos morando juntos, você já tinha seu lugar em minha vida para todo sempre.",
+        "Memória 5: Nossa primeira viagem juntos, não foi nem de perto a melhor que teremos, mas te ter comigo lá me fez ser o homem mais rico do planeta."
+      ],
+      MEMORY_IMAGES: [
+        "assets/memory1.png",
+        "assets/memory2.png",
+        "assets/memory3.png",
+        "assets/memory4.png",
+        "assets/memory5.png"
+      ],
+      FINAL_MESSAGE: "Ainda vamos preencher esse mural com mais memórias! Te amo infinito e além, parabéns pelo nosso 0.3!!!",
+      PLAYER_SPRITE: "assets/player.png"
+    };
+
+    // ========== ELEMENTOS DOM ==========
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('start-screen');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalPuzzle = document.getElementById('modal-puzzle-area');
+    const modalImageContainer = document.getElementById('modal-image-container');
+    const modalText = document.getElementById('modal-text');
+    const modalBtn = document.getElementById('modal-btn');
+    const finalMural = document.getElementById('final-mural');
+    const muralGrid = document.getElementById('mural-grid');
+
+    // Controles touch
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+    const btnJump = document.getElementById('btn-jump');
+    const btnInteract = document.getElementById('btn-interact');
+
+    // ========== VARIÁVEIS DE ESTADO ==========
+    let gameStarted = false;
+    let musicUnlocked = false;
+    let audioCtx = null;
+    let bgMusic = null;
+    let currentMemoryIndex = -1;
+    let playerSprite = null;
+    let spriteLoaded = false;
+
+    // ANIMAÇÃO DO PERSONAGEM
+    let animFrame = 0;
+    let animTimer = 0;
+    let isBlinking = false;
+    let blinkTimer = 0;
+    let bounceOffset = 0;
+    let bounceDirection = 1;
+
+    // Jogador
+    const player = { x: 40, y: 620, w: 48, h: 48, vx: 0, vy: 0, onGround: false, facing: 1 };
+    const GRAVITY = 0.55;
+    const JUMP_FORCE = -11.5;
+    const MOVE_SPEED = 3.8;
+
+    // Mapa / plataformas
+    const platforms = [
+      { x: 0, y: 680, w: 400, h: 20 },
+      { x: 60, y: 580, w: 80, h: 12 },
+      { x: 220, y: 520, w: 80, h: 12 },
+      { x: 40, y: 440, w: 70, h: 12 },
+      { x: 200, y: 370, w: 90, h: 12 },
+      { x: 40, y: 300, w: 80, h: 12 },
+      { x: 240, y: 230, w: 80, h: 12 },
+      { x: 100, y: 150, w: 90, h: 12 },
+      { x: 280, y: 80, w: 70, h: 12 },
+    ];
+
+    // Itens especiais
+    const memoryItems = [
+      { x: 80, y: 552, collected: false, index: 0 },
+      { x: 240, y: 492, collected: false, index: 1 },
+      { x: 60, y: 412, collected: false, index: 2 },
+      { x: 220, y: 342, collected: false, index: 3 },
+      { x: 260, y: 202, collected: false, index: 4 },
+    ];
+
+    // Porta final
+    const door = { x: 330, y: 50, w: 30, h: 45, unlocked: false };
+
+    let collectedCount = 0;
+    let gameComplete = false;
+    let puzzlesCompleted = [false, false, false, false, false];
+    let currentPuzzleIndex = -1;
+    let puzzleResolve = null;
+    let puzzleSolved = false;
+
+    // Controles de teclado
+    const keys = { left: false, right: false, up: false, interact: false };
+
+    // Cache de imagens
+    const imageCache = {};
+
+    // ========== FUNÇÕES DE ÁUDIO ==========
+    function unlockAudio() {
+      if (musicUnlocked) return;
+      musicUnlocked = true;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (CONFIG.BACKGROUND_MUSIC) {
+          bgMusic = new Audio(CONFIG.BACKGROUND_MUSIC);
+          bgMusic.loop = true;
+          bgMusic.volume = 0.5;
+          bgMusic.play().catch(() => {});
+        }
+      } catch(e) { console.warn('Áudio não suportado'); }
+    }
+
+    function stopMusic() {
+      if (bgMusic) {
+        bgMusic.pause();
+        bgMusic.currentTime = 0;
+      }
+    }
+
+    // ========== FUNÇÕES DE IMAGEM ==========
+    function loadImage(src) {
+      return new Promise((resolve) => {
+        if (imageCache[src]) {
+          resolve(imageCache[src]);
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          imageCache[src] = img;
+          resolve(img);
+        };
+        img.onerror = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#d4a88a';
+          ctx.fillRect(0, 0, 64, 64);
+          ctx.fillStyle = '#2a1a2a';
+          ctx.font = '32px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('👤', 32, 48);
+          ctx.fillStyle = '#b3869a';
+          ctx.font = '10px sans-serif';
+          ctx.fillText('sprite', 32, 62);
+          
+          const fallbackImg = new Image();
+          fallbackImg.src = canvas.toDataURL();
+          imageCache[src] = fallbackImg;
+          resolve(fallbackImg);
+        };
+        img.src = src;
+      });
+    }
+
+    async function loadPlayerSprite() {
+      try {
+        playerSprite = await loadImage(CONFIG.PLAYER_SPRITE);
+        spriteLoaded = true;
+        console.log('✅ Sprite do personagem carregado:', CONFIG.PLAYER_SPRITE);
+      } catch (error) {
+        console.warn('⚠️ Erro ao carregar sprite:', error);
+        spriteLoaded = false;
+      }
+    }
+
+    async function displayMemoryImage(index) {
+      const container = modalImageContainer;
+      container.innerHTML = '<span class="loading-text">⏳ Carregando imagem...</span>';
+      container.style.minHeight = '80px';
+      
+      try {
+        const img = await loadImage(CONFIG.MEMORY_IMAGES[index]);
+        container.innerHTML = '';
+        const imgElement = document.createElement('img');
+        imgElement.src = img.src;
+        imgElement.alt = `Memória ${index + 1}`;
+        container.appendChild(imgElement);
+        container.style.minHeight = 'auto';
+        container.style.padding = '4px';
+        
+        if (img.naturalHeight > 400) {
+          imgElement.style.maxHeight = '40vh';
+        }
+        
+        if (img.naturalWidth < 200 || img.naturalHeight < 150) {
+          container.style.borderWidth = '1px';
+        } else {
+          container.style.borderWidth = '2px';
+        }
+      } catch (error) {
+        container.innerHTML = '<span class="placeholder-text">❌ Erro ao carregar imagem</span>';
+        console.warn('Erro ao carregar imagem:', error);
+      }
+    }
+
+    async function updateMuralImages() {
+      const items = document.querySelectorAll('.mural-item');
+      for (let i = 0; i < items.length; i++) {
+        if (puzzlesCompleted[i]) {
+          const img = await loadImage(CONFIG.MEMORY_IMAGES[i]);
+          items[i].innerHTML = '';
+          const imgElement = document.createElement('img');
+          imgElement.src = img.src;
+          imgElement.alt = `Memória ${i + 1}`;
+          items[i].appendChild(imgElement);
+          items[i].classList.add('filled');
+        }
+      }
+    }
+
+    // ========== INICIALIZAÇÃO ==========
+    function init() {
+      muralGrid.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const div = document.createElement('div');
+        div.className = 'mural-item';
+        div.dataset.index = i;
+        div.textContent = '🖼️';
+        muralGrid.appendChild(div);
+      }
+
+      loadPlayerSprite();
+
+      window.addEventListener('keydown', (e) => {
+        if (!gameStarted) {
+          startGame();
+          return;
+        }
+        const key = e.key;
+        if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = true;
+        if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = true;
+        if (key === ' ' || key === 'Space' || key === 'ArrowUp' || key === 'w') {
+          e.preventDefault();
+          keys.up = true;
+        }
+        if (key === 'e' || key === 'E') {
+          keys.interact = true;
+          tryInteract();
+        }
+        unlockAudio();
+      });
+      window.addEventListener('keyup', (e) => {
+        const key = e.key;
+        if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = false;
+        if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = false;
+        if (key === ' ' || key === 'Space' || key === 'ArrowUp' || key === 'w') {
+          e.preventDefault();
+          keys.up = false;
+        }
+        if (key === 'e' || key === 'E') keys.interact = false;
+      });
+
+      function setupTouch(btn, onStart, onEnd) {
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); onStart(); unlockAudio(); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); onEnd(); });
+        btn.addEventListener('touchcancel', (e) => { e.preventDefault(); onEnd(); });
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); onStart(); unlockAudio(); });
+        btn.addEventListener('mouseup', (e) => { e.preventDefault(); onEnd(); });
+        btn.addEventListener('mouseleave', (e) => { onEnd(); });
+      }
+      setupTouch(btnLeft, () => { keys.left = true; }, () => { keys.left = false; });
+      setupTouch(btnRight, () => { keys.right = true; }, () => { keys.right = false; });
+      setupTouch(btnJump, () => { 
+        keys.up = true; 
+        setTimeout(() => keys.up = false, 100); 
+      }, () => {});
+      setupTouch(btnInteract, () => { keys.interact = true; tryInteract(); setTimeout(() => keys.interact = false, 100); }, () => {});
+
+      startScreen.addEventListener('click', startGame);
+      startScreen.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+
+      modalBtn.addEventListener('click', () => {
+        if (puzzleResolve && puzzleSolved) {
+          puzzleResolve();
+        }
+      });
+
+      document.getElementById('restart-btn').addEventListener('click', () => {
+        location.reload();
+      });
+
+      requestAnimationFrame(update);
+    }
+
+    // ========== INÍCIO DO JOGO ==========
+    function startGame() {
+      if (gameStarted) return;
+      gameStarted = true;
+      unlockAudio();
+      startScreen.classList.add('hidden');
+    }
+
+    // ========== INTERAÇÃO (E) ==========
+    function tryInteract() {
+      if (!gameStarted || gameComplete || modalOverlay.classList.contains('active')) return;
+      
+      for (let item of memoryItems) {
+        if (item.collected) continue;
+        const dx = (player.x + player.w/2) - (item.x + 12);
+        const dy = (player.y + player.h/2) - (item.y + 12);
+        if (Math.abs(dx) < 35 && Math.abs(dy) < 35) {
+          openPuzzle(item.index);
+          return;
+        }
+      }
+      
+      if (collectedCount >= 5 && !gameComplete) {
+        const dx = (player.x + player.w/2) - (door.x + door.w/2);
+        const dy = (player.y + player.h/2) - (door.y + door.h/2);
+        if (Math.abs(dx) < 40 && Math.abs(dy) < 40) {
+          showFinalMural();
+        }
+      }
+    }
+
+    // ========== PUZZLES ==========
+    function openPuzzle(index) {
+      if (puzzlesCompleted[index]) return;
+      currentPuzzleIndex = index;
+      puzzleSolved = false;
+      modalBtn.disabled = true;
+      modalOverlay.classList.add('active');
+      modalTitle.textContent = `💌 Memória ${index+1}`;
+      modalText.textContent = CONFIG.MEMORY_TEXTS[index] || `Memória ${index+1}`;
+      displayMemoryImage(index);
+      
+      const puzzleType = index % 5;
+      let puzzleHTML = '';
+
+      switch(puzzleType) {
+        case 0: puzzleHTML = createColorSequencePuzzle(); break;
+        case 1: puzzleHTML = createMemoryGridPuzzle(); break;
+        case 2: puzzleHTML = createLogicPuzzle(); break;
+        case 3: puzzleHTML = createOrderingPuzzle(); break;
+        case 4: puzzleHTML = createPatternPuzzle(); break;
+      }
+
+      modalPuzzle.innerHTML = puzzleHTML;
+      
+      setTimeout(() => {
+        switch(puzzleType) {
+          case 0: initColorSequencePuzzle(index); break;
+          case 1: initMemoryGridPuzzle(index); break;
+          case 2: initLogicPuzzle(index); break;
+          case 3: initOrderingPuzzle(index); break;
+          case 4: initPatternPuzzle(index); break;
+        }
+      }, 50);
+
+      puzzleResolve = () => {
+        if (puzzleSolved) {
+          completePuzzle(index);
+        }
+      };
+    }
+
+    // ===== PUZZLE 1: SEQUÊNCIA DE CORES =====
+    function createColorSequencePuzzle() {
+      return `
+        <p style="font-size:clamp(0.75rem, 1.8vw, 0.95rem); margin-bottom:6px;">Repita a sequência de 5 cores:</p>
+        <div class="sequence-display" id="sequence-display">
+          <span>?</span><span>?</span><span>?</span><span>?</span><span>?</span>
+        </div>
+        <div style="display:flex;gap:clamp(4px, 1vw, 10px);justify-content:center;flex-wrap:wrap;margin:6px 0;">
+          <button class="color-btn" data-color="0">🔴</button>
+          <button class="color-btn" data-color="1">🔵</button>
+          <button class="color-btn" data-color="2">🟢</button>
+          <button class="color-btn" data-color="3">🟡</button>
+          <button class="color-btn" data-color="4">🟣</button>
+        </div>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0;">
+          <button class="btn-secondary" id="show-sequence-btn">👁️ Rever sequência</button>
+        </div>
+        <div class="puzzle-feedback" id="seq-feedback">Clique nas cores na ordem correta</div>
+      `;
+    }
+
+    function initColorSequencePuzzle(index) {
+      const sequence = [4, 0, 3, 1, 2];
+      let currentStep = 0;
+      const display = document.getElementById('sequence-display');
+      const feedback = document.getElementById('seq-feedback');
+      const buttons = document.querySelectorAll('#modal-puzzle-area .color-btn');
+      const showBtn = document.getElementById('show-sequence-btn');
+      let isShowing = false;
+      
+      const colors = ['🔴', '🔵', '🟢', '🟡', '🟣'];
+      const spans = display.querySelectorAll('span');
+      
+      function showSequence() {
+        if (isShowing || puzzleSolved) return;
+        isShowing = true;
+        buttons.forEach(btn => btn.disabled = true);
+        feedback.textContent = '👀 Memorize a sequência...';
+        feedback.className = 'puzzle-feedback';
+        
+        spans.forEach((span, i) => {
+          span.textContent = colors[sequence[i]];
+          span.className = 'showing';
+        });
+        
+        setTimeout(() => {
+          spans.forEach(span => {
+            span.textContent = '?';
+            span.className = '';
+          });
+          isShowing = false;
+          buttons.forEach(btn => btn.disabled = false);
+          if (!puzzleSolved) {
+            feedback.textContent = 'Agora repita a sequência (5 cores)';
+          }
+        }, 2000);
+      }
+      
+      setTimeout(showSequence, 500);
+      showBtn.onclick = showSequence;
+      
+      buttons.forEach((btn) => {
+        btn.onclick = () => {
+          if (puzzleSolved || isShowing) return;
+          const color = parseInt(btn.dataset.color);
+          
+          if (color === sequence[currentStep]) {
+            spans[currentStep].textContent = colors[color];
+            spans[currentStep].className = 'done';
+            currentStep++;
+            feedback.textContent = `✅ ${currentStep}/${sequence.length}`;
+            feedback.className = 'puzzle-feedback success';
+            
+            if (currentStep === sequence.length) {
+              puzzleSolved = true;
+              modalBtn.disabled = false;
+              buttons.forEach(b => b.disabled = true);
+              feedback.textContent = '🎉 Sequência completa! Guarde sua memória.';
+            }
+          } else {
+            feedback.textContent = '❌ Cor errada! Tente novamente.';
+            feedback.className = 'puzzle-feedback error';
+            currentStep = 0;
+            spans.forEach(span => {
+              span.textContent = '?';
+              span.className = '';
+            });
+            setTimeout(() => {
+              feedback.textContent = 'Repita a sequência (5 cores)';
+              feedback.className = 'puzzle-feedback';
+            }, 800);
+          }
+        };
+      });
+    }
+
+    // ===== PUZZLE 2: MEMÓRIA DE POSIÇÕES =====
+    function createMemoryGridPuzzle() {
+      return `
+        <p style="font-size:clamp(0.75rem, 1.8vw, 0.95rem); margin-bottom:6px;">Encontre os pares de símbolos iguais:</p>
+        <div class="puzzle-grid" id="memory-grid"></div>
+        <div class="puzzle-feedback" id="mem-feedback">Clique em duas cartas para encontrar o par</div>
+      `;
+    }
+
+    function initMemoryGridPuzzle(index) {
+      const symbols = ['🌸', '🌺', '🌷', '🌹', '🌻', '🌼'];
+      const grid = document.getElementById('memory-grid');
+      const feedback = document.getElementById('mem-feedback');
+      
+      let cards = [];
+      for (let i = 0; i < 6; i++) {
+        cards.push({ symbol: symbols[i], id: i, found: false });
+        cards.push({ symbol: symbols[i], id: i, found: false });
+      }
+      
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+      
+      let selected = [];
+      let locked = false;
+      let foundPairs = 0;
+      
+      grid.innerHTML = '';
+      cards.forEach((card, idx) => {
+        const cell = document.createElement('div');
+        cell.className = 'puzzle-cell';
+        cell.dataset.index = idx;
+        cell.textContent = '❓';
+        cell.onclick = () => {
+          if (locked || card.found || selected.includes(idx)) return;
+          
+          cell.textContent = card.symbol;
+          cell.className = 'puzzle-cell selected';
+          selected.push(idx);
+          
+          if (selected.length === 2) {
+            locked = true;
+            const idx1 = selected[0];
+            const idx2 = selected[1];
+            const card1 = cards[idx1];
+            const card2 = cards[idx2];
+            
+            if (card1.id === card2.id && idx1 !== idx2) {
+              card1.found = true;
+              card2.found = true;
+              foundPairs++;
+              document.querySelectorAll('.puzzle-cell')[idx1].className = 'puzzle-cell found';
+              document.querySelectorAll('.puzzle-cell')[idx2].className = 'puzzle-cell found';
+              feedback.textContent = `✅ Par encontrado! (${foundPairs}/6)`;
+              feedback.className = 'puzzle-feedback success';
+              selected = [];
+              locked = false;
+              
+              if (foundPairs === 6) {
+                puzzleSolved = true;
+                modalBtn.disabled = false;
+                feedback.textContent = '🎉 Todos os pares encontrados! Guarde sua memória.';
+              }
+            } else {
+              feedback.textContent = '❌ Não é um par! Tente novamente.';
+              feedback.className = 'puzzle-feedback error';
+              setTimeout(() => {
+                document.querySelectorAll('.puzzle-cell')[idx1].textContent = '❓';
+                document.querySelectorAll('.puzzle-cell')[idx1].className = 'puzzle-cell';
+                document.querySelectorAll('.puzzle-cell')[idx2].textContent = '❓';
+                document.querySelectorAll('.puzzle-cell')[idx2].className = 'puzzle-cell';
+                selected = [];
+                locked = false;
+                feedback.textContent = 'Clique em duas cartas para encontrar o par';
+                feedback.className = 'puzzle-feedback';
+              }, 800);
+            }
+          }
+        };
+        grid.appendChild(cell);
+      });
+    }
+
+    // ===== PUZZLE 3: LÓGICA =====
+    function createLogicPuzzle() {
+      return `
+        <p style="font-size:clamp(0.75rem, 1.8vw, 0.95rem); margin-bottom:6px;">Qual a sequência lógica?</p>
+        <div style="font-size:clamp(1.2rem, 3vw, 1.8rem); margin:6px 0;">2 → 4 → 6 → ?</div>
+        <div style="display:flex;gap:clamp(4px, 1vw, 10px);flex-wrap:wrap;justify-content:center;margin:6px 0;">
+          <button class="puzzle-option" data-answer="0" style="width:clamp(40px, 10vw, 70px);">7</button>
+          <button class="puzzle-option" data-answer="1" style="width:clamp(40px, 10vw, 70px);">8</button>
+          <button class="puzzle-option" data-answer="2" style="width:clamp(40px, 10vw, 70px);">10</button>
+          <button class="puzzle-option" data-answer="3" style="width:clamp(40px, 10vw, 70px);">12</button>
+        </div>
+        <div class="puzzle-feedback" id="log-feedback">Escolha a opção correta</div>
+      `;
+    }
+
+    function initLogicPuzzle(index) {
+      const feedback = document.getElementById('log-feedback');
+      const buttons = document.querySelectorAll('#modal-puzzle-area .puzzle-option');
+      
+      buttons.forEach((btn) => {
+        btn.onclick = () => {
+          if (puzzleSolved) return;
+          const answer = parseInt(btn.dataset.answer);
+          if (answer === 1) {
+            puzzleSolved = true;
+            modalBtn.disabled = false;
+            feedback.textContent = '🎉 Correto! A sequência é de números pares.';
+            feedback.className = 'puzzle-feedback success';
+            btn.className = 'puzzle-option correct';
+          } else {
+            feedback.textContent = '❌ Tente novamente!';
+            feedback.className = 'puzzle-feedback error';
+            btn.className = 'puzzle-option wrong';
+            setTimeout(() => {
+              btn.className = 'puzzle-option';
+              feedback.textContent = 'Escolha a opção correta';
+              feedback.className = 'puzzle-feedback';
+            }, 600);
+          }
+        };
+      });
+    }
+
+    // ===== PUZZLE 4: ORDENAÇÃO =====
+    function createOrderingPuzzle() {
+      return `
+        <p style="font-size:clamp(0.75rem, 1.8vw, 0.95rem); margin-bottom:6px;">Ordene as palavras em ordem alfabética:</p>
+        <div id="order-items" style="display:flex;flex-direction:column;gap:4px;margin:6px 0;"></div>
+        <div class="puzzle-feedback" id="ord-feedback">Clique nas palavras em ordem alfabética</div>
+      `;
+    }
+
+    function initOrderingPuzzle(index) {
+      const words = ['amor', 'carinho', 'respeito', 'confiança', 'paciência'];
+      const shuffled = [...words];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      const container = document.getElementById('order-items');
+      const feedback = document.getElementById('ord-feedback');
+      let selected = [];
+      
+      container.innerHTML = '';
+      shuffled.forEach((word) => {
+        const btn = document.createElement('button');
+        btn.className = 'puzzle-option';
+        btn.textContent = word;
+        btn.onclick = () => {
+          if (puzzleSolved || selected.includes(word)) return;
+          selected.push(word);
+          btn.className = 'puzzle-option selected';
+          
+          const correct = ['amor', 'carinho', 'confiança', 'paciência', 'respeito'];
+          let correctSoFar = true;
+          for (let i = 0; i < selected.length; i++) {
+            if (selected[i] !== correct[i]) {
+              correctSoFar = false;
+              break;
+            }
+          }
+          
+          if (!correctSoFar) {
+            feedback.textContent = '❌ Ordem incorreta! Tente novamente.';
+            feedback.className = 'puzzle-feedback error';
+            selected = [];
+            container.querySelectorAll('.puzzle-option').forEach(el => el.className = 'puzzle-option');
+            setTimeout(() => {
+              feedback.textContent = 'Clique nas palavras em ordem alfabética';
+              feedback.className = 'puzzle-feedback';
+            }, 800);
+          } else if (selected.length === 5) {
+            puzzleSolved = true;
+            modalBtn.disabled = false;
+            feedback.textContent = '🎉 Ordem correta! Guarde sua memória.';
+            feedback.className = 'puzzle-feedback success';
+          } else {
+            feedback.textContent = `✅ ${selected.length}/5 - continue a ordem alfabética`;
+            feedback.className = 'puzzle-feedback success';
+          }
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // ===== PUZZLE 5: PADRÃO =====
+    function createPatternPuzzle() {
+      return `
+        <p style="font-size:clamp(0.75rem, 1.8vw, 0.95rem); margin-bottom:6px;">Complete o padrão:</p>
+        <div style="display:flex;gap:clamp(4px, 1vw, 10px);justify-content:center;font-size:clamp(1.5rem, 4vw, 2.5rem);margin:6px 0;">
+          <span>⬛</span><span>⬜</span><span>⬛</span><span>⬜</span><span id="pattern-missing">❓</span>
+        </div>
+        <div style="display:flex;gap:clamp(4px, 1vw, 10px);flex-wrap:wrap;justify-content:center;margin:6px 0;">
+          <button class="puzzle-option" data-answer="0" style="width:clamp(40px, 10vw, 70px);font-size:clamp(1.2rem, 3vw, 1.8rem);">⬛</button>
+          <button class="puzzle-option" data-answer="1" style="width:clamp(40px, 10vw, 70px);font-size:clamp(1.2rem, 3vw, 1.8rem);">⬜</button>
+          <button class="puzzle-option" data-answer="2" style="width:clamp(40px, 10vw, 70px);font-size:clamp(1.2rem, 3vw, 1.8rem);">🟥</button>
+        </div>
+        <div class="puzzle-feedback" id="pat-feedback">Qual símbolo completa o padrão?</div>
+      `;
+    }
+
+    function initPatternPuzzle(index) {
+      const feedback = document.getElementById('pat-feedback');
+      const buttons = document.querySelectorAll('#modal-puzzle-area .puzzle-option');
+      
+      buttons.forEach((btn) => {
+        btn.onclick = () => {
+          if (puzzleSolved) return;
+          const answer = parseInt(btn.dataset.answer);
+          if (answer === 1) {
+            puzzleSolved = true;
+            modalBtn.disabled = false;
+            document.getElementById('pattern-missing').textContent = '⬜';
+            feedback.textContent = '🎉 Padrão completo! Guarde sua memória.';
+            feedback.className = 'puzzle-feedback success';
+            btn.className = 'puzzle-option correct';
+          } else {
+            feedback.textContent = '❌ Tente novamente!';
+            feedback.className = 'puzzle-feedback error';
+            btn.className = 'puzzle-option wrong';
+            setTimeout(() => {
+              btn.className = 'puzzle-option';
+              feedback.textContent = 'Qual símbolo completa o padrão?';
+              feedback.className = 'puzzle-feedback';
+            }, 600);
+          }
+        };
+      });
+    }
+
+    // ========== COMPLETAR PUZZLE ==========
+    async function completePuzzle(index) {
+      if (puzzlesCompleted[index]) return;
+      puzzlesCompleted[index] = true;
+      collectedCount++;
+      memoryItems[index].collected = true;
+      await updateMuralImages();
+      modalOverlay.classList.remove('active');
+      puzzleSolved = false;
+      modalBtn.disabled = true;
+      
+      if (collectedCount >= 5) {
+        door.unlocked = true;
+      }
+      currentPuzzleIndex = -1;
+      puzzleResolve = null;
+    }
+
+    // ========== FINAL MURAL ==========
+    function showFinalMural() {
+      if (gameComplete) return;
+      gameComplete = true;
+      stopMusic();
+      finalMural.classList.add('active');
+    }
+
+    // ========== FUNÇÃO DE COLISÃO COM PLATAFORMAS ==========
+    function checkPlatformCollision(player, platform) {
+      const overlapX = player.x < platform.x + platform.w && player.x + player.w > platform.x;
+      const overlapY = player.y < platform.y + platform.h && player.y + player.h > platform.y;
+      
+      if (!overlapX || !overlapY) return false;
+      
+      const distLeft = Math.abs(player.x + player.w - platform.x);
+      const distRight = Math.abs(player.x - (platform.x + platform.w));
+      const distTop = Math.abs(player.y + player.h - platform.y);
+      const distBottom = Math.abs(player.y - (platform.y + platform.h));
+      
+      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+      
+      if (distBottom === minDist && player.vy < 0) {
+        return false;
+      }
+      
+      if (distTop === minDist && player.vy >= 0) {
+        player.y = platform.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+        return true;
+      }
+      
+      if (distLeft === minDist) {
+        player.x = platform.x - player.w;
+        player.vx = 0;
+        return true;
+      }
+      
+      if (distRight === minDist) {
+        player.x = platform.x + platform.w;
+        player.vx = 0;
+        return true;
+      }
+      
+      return false;
+    }
+
+    // ========== LOOP DE JOGO ==========
+    function update() {
+      if (!gameStarted) {
+        requestAnimationFrame(update);
+        return;
+      }
+
+      // ===== ATUALIZA ANIMAÇÃO =====
+      animTimer++;
+      if (animTimer % 6 === 0) {
+        animFrame = (animFrame + 1) % 4;
+      }
+      
+      blinkTimer++;
+      if (blinkTimer > 240) {
+        isBlinking = true;
+        if (blinkTimer > 248) {
+          isBlinking = false;
+          blinkTimer = 0;
+        }
+      }
+      
+      if (player.onGround) {
+        bounceOffset += 0.08 * bounceDirection;
+        if (bounceOffset > 2 || bounceOffset < -2) {
+          bounceDirection *= -1;
+        }
+      } else {
+        bounceOffset = 0;
+      }
+
+      if (!gameComplete && !modalOverlay.classList.contains('active')) {
+        if (keys.left) { player.vx = -MOVE_SPEED; player.facing = -1; }
+        else if (keys.right) { player.vx = MOVE_SPEED; player.facing = 1; }
+        else player.vx *= 0.7;
+
+        if (keys.up && player.onGround) {
+          player.vy = JUMP_FORCE;
+          player.onGround = false;
+        }
+
+        player.vy += GRAVITY;
+        if (player.vy > 14) player.vy = 14;
+
+        player.x += player.vx;
+        for (let p of platforms) {
+          const oldX = player.x;
+          const collided = checkPlatformCollision(player, p);
+          if (collided && player.x !== oldX) break;
+        }
+
+        player.y += player.vy;
+        player.onGround = false;
+        for (let p of platforms) {
+          const oldY = player.y;
+          const collided = checkPlatformCollision(player, p);
+          if (collided && player.y !== oldY) break;
+        }
+
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.w > 400) player.x = 400 - player.w;
+        if (player.y + player.h > 700) { 
+          player.y = 700 - player.h; 
+          player.vy = 0; 
+          player.onGround = true; 
+        }
+        if (player.y < -20) player.y = -20;
+      }
+
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    // ========== DESENHO ==========
+    function draw() {
+      ctx.clearRect(0, 0, 400, 720);
+
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 720);
+      skyGrad.addColorStop(0, '#c47a6a');
+      skyGrad.addColorStop(0.15, '#d48a7a');
+      skyGrad.addColorStop(0.3, '#d99a82');
+      skyGrad.addColorStop(0.5, '#c9a88a');
+      skyGrad.addColorStop(0.7, '#b8987a');
+      skyGrad.addColorStop(1, '#a0806a');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, 400, 720);
+
+      ctx.fillStyle = 'rgba(200, 160, 140, 0.25)';
+      ctx.beginPath();
+      ctx.arc(50, 60, 35, 0, Math.PI * 2);
+      ctx.arc(90, 50, 45, 0, Math.PI * 2);
+      ctx.arc(130, 60, 35, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = 'rgba(200, 160, 140, 0.18)';
+      ctx.beginPath();
+      ctx.arc(280, 100, 30, 0, Math.PI * 2);
+      ctx.arc(310, 90, 40, 0, Math.PI * 2);
+      ctx.arc(340, 100, 30, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let i = 0; i < 12; i++) {
+        const x = (i * 37 + 10) % 400;
+        const y = (i * 23 + 30) % 150 + 20;
+        ctx.fillStyle = `rgba(220, 180, 150, ${0.15 + Math.random() * 0.2})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 2 + Math.random() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = '#8a7a6a';
+      ctx.beginPath();
+      ctx.quadraticCurveTo(0, 380, 80, 350);
+      ctx.quadraticCurveTo(150, 330, 200, 360);
+      ctx.quadraticCurveTo(280, 340, 400, 370);
+      ctx.lineTo(400, 720);
+      ctx.lineTo(0, 720);
+      ctx.fill();
+
+      ctx.fillStyle = '#9a8a7a';
+      ctx.beginPath();
+      ctx.quadraticCurveTo(0, 400, 100, 380);
+      ctx.quadraticCurveTo(200, 360, 300, 390);
+      ctx.quadraticCurveTo(350, 380, 400, 400);
+      ctx.lineTo(400, 720);
+      ctx.lineTo(0, 720);
+      ctx.fill();
+
+      for (let i = 0; i < 6; i++) {
+        const tx = 30 + i * 70 + Math.sin(i) * 10;
+        const ty = 380 + Math.sin(i * 2) * 15;
+        ctx.fillStyle = '#6a5a4a';
+        ctx.fillRect(tx + 4, ty, 4, 16);
+        ctx.fillStyle = '#4a6a4a';
+        ctx.beginPath();
+        ctx.arc(tx + 6, ty - 4, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5a7a5a';
+        ctx.beginPath();
+        ctx.arc(tx + 8, ty - 8, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const hearts = [
+        { x: 30, y: 200, size: 12, alpha: 0.3 },
+        { x: 370, y: 170, size: 16, alpha: 0.25 },
+        { x: 200, y: 130, size: 14, alpha: 0.2 },
+        { x: 100, y: 250, size: 10, alpha: 0.3 },
+        { x: 320, y: 280, size: 18, alpha: 0.15 },
+      ];
+      hearts.forEach(h => {
+        ctx.fillStyle = `rgba(180, 120, 100, ${h.alpha})`;
+        ctx.font = `${h.size}px sans-serif`;
+        ctx.fillText('♥', h.x, h.y);
+      });
+
+      ctx.shadowColor = '#6a5a4a';
+      ctx.shadowBlur = 10;
+      for (let p of platforms) {
+        const platGrad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.h);
+        platGrad.addColorStop(0, '#9a8a7a');
+        platGrad.addColorStop(0.3, '#8a7a6a');
+        platGrad.addColorStop(1, '#6a5a4a');
+        ctx.fillStyle = platGrad;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.fillStyle = 'rgba(160, 140, 120, 0.2)';
+        ctx.fillRect(p.x + 4, p.y + 2, p.w - 8, 3);
+      }
+      ctx.shadowBlur = 0;
+
+      for (let item of memoryItems) {
+        if (item.collected) continue;
+        ctx.shadowColor = '#d48a7a';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#d48a7a';
+        ctx.beginPath();
+        ctx.arc(item.x + 12, item.y + 12, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#2a1a2a';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('💝', item.x + 12, item.y + 20);
+      }
+
+      ctx.shadowColor = '#6a5a4a';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = door.unlocked ? '#9a8a7a' : '#5a4a3a';
+      ctx.fillRect(door.x, door.y, door.w, door.h);
+      ctx.fillStyle = '#ffd9b3';
+      ctx.font = '22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(door.unlocked ? '🚪' : '🔒', door.x + 15, door.y + 32);
+      ctx.shadowBlur = 0;
+
+      // ===== JOGADOR COM ANIMAÇÃO =====
+      ctx.save();
+      
+      const drawY = player.y + (player.onGround ? Math.floor(bounceOffset) : 0);
+      
+      if (spriteLoaded && playerSprite) {
+        ctx.shadowColor = '#9a8a7a';
+        ctx.shadowBlur = 12;
+        
+        if (player.facing === -1) {
+          ctx.translate(player.x + player.w, drawY);
+          ctx.scale(-1, 1);
+        } else {
+          ctx.translate(player.x, drawY);
+        }
+        
+        const breatheScale = 1 + Math.sin(animTimer * 0.03) * 0.015;
+        ctx.scale(breatheScale, breatheScale);
+        
+        ctx.drawImage(playerSprite, 0, 0, player.w, player.h);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.shadowColor = '#9a8a7a';
+        ctx.shadowBlur = 12;
+        
+        ctx.fillStyle = '#d4a88a';
+        ctx.fillRect(player.x, drawY, player.w, player.h);
+        
+        if (isBlinking) {
+          ctx.strokeStyle = '#2a1a2a';
+          ctx.lineWidth = 2;
+          const eyeY = drawY + 14;
+          const eyeOffset = player.facing === 1 ? 8 : 30;
+          ctx.beginPath();
+          ctx.moveTo(player.x + eyeOffset - 6, eyeY);
+          ctx.lineTo(player.x + eyeOffset + 6, eyeY);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(player.x + (player.facing === 1 ? 30 : 8) - 6, eyeY);
+          ctx.lineTo(player.x + (player.facing === 1 ? 30 : 8) + 6, eyeY);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#2a1a2a';
+          ctx.fillRect(player.x + (player.facing === 1 ? 28 : 6), drawY + 12, 5, 6);
+          ctx.fillRect(player.x + (player.facing === 1 ? 8 : 28), drawY + 12, 5, 6);
+          ctx.fillStyle = '#f7e3d4';
+          ctx.fillRect(player.x + (player.facing === 1 ? 30 : 8), drawY + 13, 2, 2);
+          ctx.fillRect(player.x + (player.facing === 1 ? 10 : 30), drawY + 13, 2, 2);
+        }
+        
+        ctx.strokeStyle = '#2a1a2a';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(player.x + player.w/2, drawY + 26, 8, 0.1, Math.PI - 0.1);
+        ctx.stroke();
+        
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+
+      // HUD
+      ctx.fillStyle = 'rgba(26, 14, 30, 0.5)';
+      ctx.roundRect(6, 6, 90, 28, 14);
+      ctx.fill();
+      ctx.fillStyle = '#f7e3d4';
+      ctx.font = '14px monospace';
+      ctx.fillText(`💕 ${collectedCount}/5`, 14, 26);
+      
+      if (collectedCount >= 5 && !gameComplete) {
+        ctx.fillStyle = 'rgba(26, 14, 30, 0.6)';
+        ctx.roundRect(180, 6, 180, 28, 14);
+        ctx.fill();
+        ctx.fillStyle = '#ffd9b3';
+        ctx.font = '14px monospace';
+        ctx.fillText('🚪 A porta se abriu!', 190, 26);
+      }
+    }
+
+    // Polyfill para roundRect
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (r > w/2) r = w/2;
+        if (r > h/2) r = h/2;
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r);
+        this.lineTo(x + w, y + h - r);
+        this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        this.lineTo(x + r, y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r);
+        this.lineTo(x, y + r);
+        this.quadraticCurveTo(x, y, x + r, y);
+        return this;
+      };
+    }
+
+    window.onload = init;
+  })();
+</script>
+</body>
+</html>
