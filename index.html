@@ -717,9 +717,24 @@
           bgMusic = new Audio(CONFIG.BACKGROUND_MUSIC);
           bgMusic.loop = true;
           bgMusic.volume = 0.5;
-          bgMusic.play().catch(() => {});
+          
+          // Tenta tocar a música
+          bgMusic.play().catch((error) => {
+            console.warn('⚠️ Áudio bloqueado pelo navegador. Aguardando interação do usuário.');
+            // Se falhar, tenta novamente no próximo clique
+            musicUnlocked = false;
+          });
         }
-      } catch(e) { console.warn('Áudio não suportado'); }
+      } catch(e) { 
+        console.warn('Áudio não suportado'); 
+      }
+    }
+
+    // Função para tentar tocar música novamente (chamada em cada interação)
+    function retryPlayMusic() {
+      if (bgMusic && bgMusic.paused && musicUnlocked) {
+        bgMusic.play().catch(() => {});
+      }
     }
 
     function stopMusic() {
@@ -852,6 +867,7 @@
           tryInteract();
         }
         unlockAudio();
+        retryPlayMusic();
       });
       window.addEventListener('keyup', (e) => {
         const key = e.key;
@@ -864,7 +880,7 @@
         if (key === 'e' || key === 'E') keys.interact = false;
       });
 
-      // ===== EVENTOS DE TOQUE (CORRIGIDOS) =====
+      // ===== EVENTOS DE TOQUE =====
       function setupTouch(btn, onStart, onEnd) {
         // Touch events
         btn.addEventListener('touchstart', (e) => {
@@ -872,6 +888,7 @@
           e.stopPropagation();
           onStart();
           unlockAudio();
+          retryPlayMusic();
         }, { passive: false });
         
         btn.addEventListener('touchend', (e) => {
@@ -891,6 +908,7 @@
           e.preventDefault();
           onStart();
           unlockAudio();
+          retryPlayMusic();
         });
         
         btn.addEventListener('mouseup', (e) => {
@@ -915,41 +933,37 @@
         setTimeout(() => keys.interact = false, 150); 
       }, () => {});
 
-      // ===== TELA INICIAL - CLICK E TOUCH =====
-      startScreen.addEventListener('click', (e) => {
+      // ===== TELA INICIAL =====
+      function handleStartScreenInteraction(e) {
         e.preventDefault();
+        unlockAudio();
+        retryPlayMusic();
         startGame();
-      });
-      
-      startScreen.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        startGame();
-      }, { passive: false });
+      }
+
+      startScreen.addEventListener('click', handleStartScreenInteraction);
+      startScreen.addEventListener('touchstart', handleStartScreenInteraction, { passive: false });
 
       // ===== BOTÃO DO MODAL =====
-      modalBtn.addEventListener('click', () => {
-        if (puzzleResolve && puzzleSolved) {
-          puzzleResolve();
-        }
-      });
-      
-      modalBtn.addEventListener('touchstart', (e) => {
+      function handleModalButton(e) {
         e.preventDefault();
         if (puzzleResolve && puzzleSolved) {
           puzzleResolve();
         }
-      }, { passive: false });
+        retryPlayMusic();
+      }
+
+      modalBtn.addEventListener('click', handleModalButton);
+      modalBtn.addEventListener('touchstart', handleModalButton, { passive: false });
 
       // ===== BOTÃO DE REINICIAR =====
-      document.getElementById('restart-btn').addEventListener('click', () => {
-        location.reload();
-      });
-      
-      document.getElementById('restart-btn').addEventListener('touchstart', (e) => {
+      function handleRestart(e) {
         e.preventDefault();
         location.reload();
-      }, { passive: false });
+      }
+
+      document.getElementById('restart-btn').addEventListener('click', handleRestart);
+      document.getElementById('restart-btn').addEventListener('touchstart', handleRestart, { passive: false });
 
       requestAnimationFrame(update);
     }
@@ -958,7 +972,6 @@
     function startGame() {
       if (gameStarted) return;
       gameStarted = true;
-      unlockAudio();
       startScreen.classList.add('hidden');
     }
 
